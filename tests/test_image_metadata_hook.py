@@ -260,6 +260,20 @@ class ImageMetadataHookTests(unittest.TestCase):
         self.git("commit", "-qm", "Content detection")
         self.assert_private_metadata_removed(path)
 
+    def test_glb_models_are_untouched_and_renamed_images_are_still_sanitized(self):
+        path = self.image("assets/photo.glb", fixture="jpg")
+        self.add_metadata(path)
+        model_json = json.dumps({"asset": {"version": "2.0"}, "scenes": [{"nodes": []}], "scene": 0}).encode()
+        model_json += b" " * (-len(model_json) % 4)
+        model_bytes = struct.pack("<4sIIII", b"glTF", 2, 20 + len(model_json), len(model_json), 0x4E4F534A) + model_json
+        model = self.repo / "assets" / "model.glb"
+        model.write_bytes(model_bytes)
+        self.git("add", "assets")
+        self.git("commit", "-qm", "GLB alongside images")
+        self.assertEqual(self.git("show", "HEAD:assets/model.glb").stdout, model_bytes)
+        self.assertEqual(model.read_bytes(), model_bytes)
+        self.assert_private_metadata_removed(self.committed_image("assets/photo.glb"))
+
     def test_symlinks_and_replaced_parent_directories_are_rejected(self):
         outside = self.image("outside/photo.jpg")
         self.add_metadata(outside)

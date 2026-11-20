@@ -81,6 +81,18 @@ def has_symlink(path):
     return any(parent.is_symlink() for parent in (path, *path.parents))
 
 
+def is_glb(path):
+    if path.suffix.lower() != ".glb":
+        return False
+    with path.open("rb") as source:
+        header = source.read(12)
+    return (
+        len(header) == 12 and header[:4] == b"glTF"
+        and int.from_bytes(header[4:8], "little") == 2
+        and int.from_bytes(header[8:12], "little") == path.stat().st_size
+    )
+
+
 def validate_clean(path, metadata):
     for key in metadata:
         parts = key.split(":")
@@ -128,6 +140,8 @@ def clean_images():
     images = []
     for path, object_id in files:
         if path.stat().st_size == 0 and path.suffix.lower() not in IMAGE_EXTENSIONS:
+            continue
+        if is_glb(path):
             continue
         metadata = read_metadata(path)
         mime_type = field(metadata, "MIMEType") or ""
